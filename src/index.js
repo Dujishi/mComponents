@@ -1,67 +1,25 @@
-import {
-  Input,
-  InputNumber,
-  Radio,
-  RadioGroup,
-  Checkbox,
-  CheckboxGroup,
-  Switch,
-  Select,
-  Option,
-  DatePicker,
-  Form,
-  FormItem,
-  Table,
-  TableColumn,
-  Tag,
-  Col,
-  Cascader
-} from 'element-ui'
-import mForm from './components/mForm.vue'
-import mItem from './components/mItem.vue'
-import mSelect from './components/mSelect.vue'
-import mTable from './components/mTable.vue'
+import MForm from './components/MForm.vue'
+import MItem from './components/MItem.vue'
+import MSelect from './components/MSelect.vue'
+import MTable from './components/MTable.vue'
 import './styles/index.css'
-const components = [
-  Input,
-  InputNumber,
-  Radio,
-  RadioGroup,
-  Checkbox,
-  CheckboxGroup,
-  Switch,
-  Select,
-  Option,
-  DatePicker,
-  Form,
-  FormItem,
-  Table,
-  TableColumn,
-  Tag,
-  Col,
-  Cascader
-]
 const install = function (Vue, opts) {
   if (install.installed) return
-  Vue.prototype.$ELEMENT = {
-    size: opts.size || '',
-    zIndex: opts.zIndex || 2000
+  if (!Vue.prototype.$ELEMENT) {
+    throw new Error('请先安装element-ui')
   }
-  components.map(component => {
-    Vue.component(component.name, component)
-  })
-  Vue.component(mForm.name, mForm)
-  Vue.component(mItem.name, mItem)
-  Vue.component(mSelect.name, mSelect)
-  Vue.component(mTable.name, mTable)
+  Vue.component(MForm.name, MForm)
+  Vue.component(MItem.name, MItem)
+  Vue.component(MSelect.name, MSelect)
+  Vue.component(MTable.name, MTable)
 }
 if (window.Vue) {
   install(window.Vue)
 }
 export default {
   install,
-  mForm,
-  mItem,
-  mSelect,
-  mTable
+  MForm,
+  MItem,
+  MSelect,
+  MTable
 }

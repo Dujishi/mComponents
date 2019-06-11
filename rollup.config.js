@@ -8,7 +8,7 @@ import cssnano from 'cssnano'
 import createBanner from 'create-banner'
 import changeCase from 'change-case'
 const pkg = require('./package')
-const name = changeCase.pascalCase(pkg.name.replace('@hanyk/', ''))
+const name = changeCase.pascalCase(pkg.name.replace('@zui/', ''))
 const banner = createBanner({
   data: {
     name: `${name}.js`,
@@ -20,10 +20,11 @@ export default {
   output: {
     banner,
     file: 'dist/index.js',
-    format: 'cjs',
+    format: 'umd',
     name
   },
   cache: true,
+  // external: id => id.indexOf('element-ui') > -1,
   plugins: [
     VuePlugin(),
     postcss({

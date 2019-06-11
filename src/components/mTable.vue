@@ -12,59 +12,63 @@
       @sort-change='sortChange'
       @current-change="currentChange"
       ref='commontable' v-bind="$attrs" v-on="$listeners">
-      <el-table-column type="expand" v-if='expand'>
+      <el-table-column type="expand" v-if='expand && !isTree' >
+        <template slot-scope="scope">
+          <slot name='expand' :row='scope.row' :$index='scope.$index'/>
+        </template>
+      </el-table-column>
+      <el-table-column type="selection" :selectable='selectable' :reserve-selection='reserveSelection' align="center" v-if='(selection&&list.length)'>
+      </el-table-column>
+      <el-table-column :label="numTitle" align="center" width='60' v-if='showNum && list.length && !isTree' :fixed="numFiexd||(columns[0]&&columns[0].fixed)">
         <template slot-scope='scope'>
-          <slot name='expand' :row='scope.row' :$index='scope.$index'>
+          <slot name='mnum'  :row='scope.row' :num="scope.$index+1+((page.pageNum-1)*page.pageSize)" :$index='scope.$index'>
+            <span style="margin-left: 10px">{{ scope.$index+1+((page.pageNum-1)*page.pageSize)}}</span>
           </slot>
         </template>
       </el-table-column>
-      <el-table-column type="selection" :selectable='selectable' align="center" v-if='selection&&list.length'>
-      </el-table-column>
-      <el-table-column :label="numTitle" align="center" width='60' v-if='showNum&&list.length' :fixed="numFiexd">
-        <template slot-scope='scope'>
-          <slot name='mnum' :row='scope.row' :num="scope.$index+1+((page.pageIndex-1)*page.pageSize)" :$index='scope.$index'>
-            <span style="margin-left: 10px">{{ scope.$index+1+((page.pageIndex-1)*page.pageSize)}}</span>
-          </slot>
-        </template>
-      </el-table-column>
-      <template v-for='obj in columns'>
+      <slot></slot>
+      <template v-for='(obj,index) in columns'>
         <el-table-column
           v-bind="obj"
           :class-name='obj.className||obj.el'
           :align='obj.align||"center"'
           :filter-method="obj.filters?filtetag.bind(null,obj):null"
           :key='getKey(obj.prop)'>
-          <template slot-scope='scope'>
-            <slot :name='obj.prop' :row='scope.row' :$index='scope.$index' :column="obj">
-                <span v-if='!obj.el'>
-                  {{scope.row[obj.prop]}}
-                </span>
-              <span v-else-if='obj.el==="boolean"'>
-                {{scope.row[obj.prop]===true?obj.trueLabel:obj.falseLabel}}
+          <span slot-scope='scope' :class="isTree && index === 0?'first-columns':null">
+              <span v-if="scope.row.treeLevel && index === 0" :style="{minWidth:`${scope.row.treeLevel*15}px`}"></span>
+              <span v-if="scope.row.expandAll!==undefined && index === 0"  class="expan-icon" @click="expandClick(scope)">
+                <i :class="scope.row.expandAll?'el-icon-minus':'el-icon-plus'" ></i>&nbsp;
               </span>
-              <m-item
-                :column='getColumns(obj,scope)'
-                @currentObj='(data,key)=>currentObj(scope,data,key)'
-                :row='scope.row' v-else />
-            </slot>
-          </template>
+              <slot :name='obj.prop' :row='scope.row' :$index='scope.$index' :column="obj">
+                <m-item
+                  :column='getColumns(obj,scope)'
+                  @currentObj='(data,key)=>currentObj(scope,data,key)'
+                  :row='scope.row' :index='scope.$index' class="m-item"/>
+              </slot>
+          </span>
         </el-table-column>
       </template>
+      <el-table-column :align="buttonAlign||'center'" :fixed="buttonFixed" :width="buttonWidth" :label='buttonLabel' v-if="$scopedSlots.button">
+        <template slot-scope='{ row, $index }'>
+          <slot :row='row' :$index='$index' name="button" ></slot>
+        </template>
+      </el-table-column>
     </el-table>
     <slot name='page'>
       <el-pagination
-        style="text-align:right" v-if='showPage'
-        :current-page="page.pageIndex"
+        style="text-align:right" v-if='showPage && !isTree'
+        :current-page="page.pageNum"
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
         :page-sizes="pageSizes"
-        :page-size="page.pageSize" :layout="layout" :total="total||tableData.length" />
+        :page-size="page.pageSize" :layout="layout" :total="cTotal" />
     </slot>
   </div>
 </template>
 <script>
+import ExportCsv from '../utils/export-csv'
 export default {
-  name: 'm-table',
+  name: 'MTable',
   props: {
     tableData: {
       type: Array,
@@ -72,6 +76,21 @@ export default {
         return []
       }
     },
+    isTree: Boolean,
+    buttonWidth: [String, Number],
+    buttonAlign: {
+      type: String,
+      default: 'center'
+    },
+    buttonFixed: {
+      type: String,
+      default: 'right'
+    },
+    buttonLabel: {
+      type: String,
+      default: '操作'
+    },
+    reserveSelection: Boolean,
     layout: {
       type: String,
       default: 'total,sizes,prev, pager, next, jumper'
@@ -102,7 +121,7 @@ export default {
     },
     stripe: {
       type: Boolean,
-      default: true
+      default: false
     },
     numTitle: {
       type: String,
@@ -124,7 +143,7 @@ export default {
       type: Object,
       default () {
         return {
-          pageIndex: 1,
+          pageNum: 1,
           pageSize: 15
         }
       }
@@ -137,15 +156,31 @@ export default {
     }
   },
   inheritAttrs: false,
+  data () {
+    return {
+      treeData: this.formatTreeData(this.tableData)
+    }
+  },
   computed: {
+    cTotal () {
+      const t = this.total || (this.page && this.page.total)
+      if (t) return t
+      return this.isTree ? this.treeData.length : this.tableData.length
+    },
     list () {
-      if (this.total || !this.showPage) {
+      if (this.isTree) return this.treeData
+      const t = this.total || (this.page && this.page.total)
+      // if (this.showPage) return this.tableData
+      // if (!this.showPage && !t) {
+      //   return this.tableData
+      // }
+      if (this.showPage || !t) {
         return this.tableData
       }
       return this.tableData.filter((obj, index) => {
         return (
-          index >= (this.page.pageIndex - 1) * this.page.pageSize &&
-          index < this.page.pageIndex * this.page.pageSize
+          index >= (this.page.pageNum - 1) * this.page.pageSize &&
+          index < this.page.pageNum * this.page.pageSize
         )
       })
     },
@@ -158,10 +193,58 @@ export default {
   },
   watch: {
     tableData () {
-      if (this.total === '' || this.total === null || isNaN(this.total)) this.page.pageIndex = 1
+      const count = this.total || this.page.total
+      if (!count && isNaN(count)) this.page.pageNum = 1
+      if (this.isTree) this.treeData = this.formatTreeData(this.tableData)
     }
   },
+
   methods: {
+    formatTreeData (data, level = 0, arr = []) {
+      data.forEach(obj => {
+        obj.treeLevel = level
+        arr.push(obj)
+        if (obj.children && obj.children.length) {
+          const key = this.$attrs.rowKey || this.$attrs['row-key']
+          if (this.treeData && this.treeData.length && key) {
+            const o = this.treeData.find(item => item[key] === obj[key]) || { expandAll: false }
+            obj.expandAll = o.expandAll
+          }
+          if (obj.expandAll === undefined)obj.expandAll = false
+          if (obj.expandAll === true) this.formatTreeData(obj.children, level + 1, arr)
+        }
+      })
+      return arr
+    },
+    expandClick (scope) {
+      scope.row.expandAll = !scope.row.expandAll
+      this.treeData = this.formatTreeData(this.tableData)
+    },
+    toggleRowExpansion (...args) {
+      this.$refs.commontable.toggleRowExpansion(...args)
+    },
+    exportCsv (params = {}) {
+      if (params.filename) {
+        if (params.filename.indexOf('.csv') === -1) {
+          params.filename += '.csv'
+        }
+      } else {
+        params.filename = 'table.csv'
+      }
+      let columns = []
+      let datas = []
+      if (params.columns && params.data) {
+        columns = params.columns
+        datas = params.data
+      } else {
+        columns = this.columns
+        if (!('original' in params)) params.original = true
+        datas = params.original ? this.tableData : this.list
+      }
+      const data = ExportCsv.format(columns, datas, params)
+      if (params.callback) params.callback(data)
+      else ExportCsv.download(params.filename, data)
+    },
     getKey (str) {
       if (this.forced) return (str || '') + (Math.random() * Date.now())
       return str
@@ -222,12 +305,14 @@ export default {
       this.$emit('pageChange', this.page)
     },
     handleCurrentChange (val) {
-      this.page.pageIndex = val
+      this.page.pageNum = val
       this.$emit('pageChange', this.page)
     },
-    toggleRowSelection (rows) {
-      rows.forEach(row => {
-        this.$refs.commontable.toggleRowSelection(row)
+    toggleRowSelection (rows, type) {
+      this.$nextTick(() => {
+        rows.forEach(row => {
+          this.$refs.commontable.toggleRowSelection(row, type)
+        })
       })
     },
     clearSelection () {

@@ -1,21 +1,32 @@
 <template>
   <el-form class="m-form" :model="formData" ref='ruleForm' :label-width="labelWidth" v-bind="$attrs">
-    <el-col :span="($store.getters.isMobile && !noWrap)? 22:(column.span||11)" v-for="column in columns" :key='column.prop'>
+    <el-col :span="isMobile && !noWrap ? 22:(column.span||11)" v-for="column in columns" :key='column.prop'>
       <el-form-item v-bind="column" :label-width="!column.label?'10px':column.labelWidth||labelWidth">
-        <slot :name='column.prop' :column='column'>
-          <m-item :column='column'  :row='formData'   >
-            <template v-if='column.el==="input"&&column.append&&column.appendCustom' :slot="column.prop+'_append'">
-              <slot :name="column.prop+'_append'"></slot>
-            </template>
-          </m-item>
-        </slot>
+        <div class="mform-item">
+          <slot :name='column.prop' :column='column'>
+          <render-item v-if="column.slots && column.slots.left"
+            :row="formData"
+            :column='column'
+            :renderItem='column.slots.left'/>
+            <m-item :column='column'  :row='formData'   >
+              <template v-if='column.el==="input"&&column.append&&column.appendCustom' :slot="column.prop+'_append'">
+                <slot :name="column.prop+'_append'"></slot>
+              </template>
+            </m-item>
+          <render-item v-if="column.slots && column.slots.right"
+            :row="formData"
+            :column='column'
+            :renderItem='column.slots.right'/>
+          </slot>
+        </div>
       </el-form-item>
     </el-col>
+    <slot></slot>
   </el-form>
 </template>
 <script>
 export default {
-  name: 'm-form',
+  name: 'MForm',
   props: {
     formData: {
       type: Object,
@@ -60,7 +71,27 @@ export default {
     },
     selectList (data, key) {
       this.$emit('selectList', data, key)
+    },
+    setFormSize () {
+      setTimeout(() => {
+        const { width, height, top, bottom, left, right, x, y } = this.$el.getClientRects()[0] || {}
+        this.formSize = { width, height, top, bottom, left, right, x, y }
+        this.isMobile = width < 800
+      }, 100)
     }
+  },
+  data () {
+    return {
+      formSize: {},
+      isMobile: false
+    }
+  },
+  mounted () {
+    window.addEventListener('resize', this.setFormSize)
+    this.$once('hook:beforeDestroy', () => {
+      window.removeEventListener('resize', this.setFormSize)
+    })
+    this.setFormSize()
   }
 }
 </script>
